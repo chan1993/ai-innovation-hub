@@ -305,31 +305,17 @@ export default function SubmitPage() {
               className={inputCls('github')} />
           </div>
 
-          {/* SharePoint + Instructions */}
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-semibold text-white/70 mb-1">SharePoint Link</label>
-              <div className="bg-[#4f86f7]/8 border border-[#4f86f7]/20 rounded-xl px-4 py-3 mb-2">
-                <p className="text-xs text-[#4f86f7]/80 leading-relaxed">
-                  📁 Upload all files to a shared SharePoint folder and set access to <strong>"Everyone at ZoomRx"</strong> — this ensures anyone can open your files without needing to request access.
-                </p>
-              </div>
-              <input type="url" value={form.sharepoint} onChange={(e) => set('sharepoint', e.target.value)}
-                placeholder="https://zoomrx.sharepoint.com/..."
-                className={inputCls('sharepoint')} />
+          {/* SharePoint */}
+          <div>
+            <label className="block text-sm font-semibold text-white/70 mb-1">SharePoint Link</label>
+            <div className="bg-[#4f86f7]/8 border border-[#4f86f7]/20 rounded-xl px-4 py-3 mb-2">
+              <p className="text-xs text-[#4f86f7]/80 leading-relaxed">
+                📁 Upload all files to a shared SharePoint folder and set access to <strong>"Everyone at ZoomRx"</strong>. Please also include a document with step-by-step instructions so teammates can replicate your idea easily.
+              </p>
             </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-white/70 mb-1">Implementation Instructions</label>
-              <p className="text-xs text-white/25 mb-2">Step-by-step instructions to replicate this idea. Write them here or paste from your SharePoint doc.</p>
-              <textarea
-                rows={5}
-                value={form.implementation_notes}
-                onChange={(e) => set('implementation_notes', e.target.value)}
-                placeholder={`e.g.\n1. Go to ChatGPT and open a new conversation\n2. Upload the transcript file\n3. Use the following prompt: "Summarise this into key themes..."\n4. Copy the output into the report template on SharePoint`}
-                className={inputCls('implementation_notes')}
-              />
-            </div>
+            <input type="url" value={form.sharepoint} onChange={(e) => set('sharepoint', e.target.value)}
+              placeholder="https://zoomrx.sharepoint.com/..."
+              className={inputCls('sharepoint')} />
           </div>
 
           {/* References */}

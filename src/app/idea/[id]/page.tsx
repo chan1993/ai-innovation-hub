@@ -365,21 +365,12 @@ export default function IdeaDetailPage() {
                 <div>
                   <label className="block text-xs text-white/30 mb-1">SharePoint</label>
                   <div className="bg-[#4f86f7]/8 border border-[#4f86f7]/20 rounded-lg px-3 py-2 mb-2 text-xs text-[#4f86f7]/80">
-                    📢 Please share the SharePoint folder/file with <strong>everyone at ZoomRx</strong> so teammates can access without permission issues.
+                    📢 Please share the SharePoint folder/file with <strong>everyone at ZoomRx</strong> and include a document with step-by-step instructions so teammates can replicate your idea easily.
                   </div>
                   <input type="url"
                     value={editForm?.sharepoint ?? ''}
                     onChange={(e) => setEditForm((f) => f ? { ...f, sharepoint: e.target.value } : f)}
                     placeholder="https://zoomrx.sharepoint.com/..."
-                    className={inputCls} />
-                  <p className="text-white/25 text-xs mt-1">Include any related files (prompts, templates, datasets, etc.)</p>
-                </div>
-                <div>
-                  <label className="block text-xs text-white/30 mb-2">Implementation Instructions</label>
-                  <textarea rows={4}
-                    value={editForm?.implementation_notes ?? ''}
-                    onChange={(e) => setEditForm((f) => f ? { ...f, implementation_notes: e.target.value } : f)}
-                    placeholder="Step-by-step instructions for others to replicate this idea..."
                     className={inputCls} />
                 </div>
                 <div>
@@ -426,12 +417,6 @@ export default function IdeaDetailPage() {
                     </a>
                   ))}
                 </div>
-                {idea.implementation_notes && (
-                  <div className="bg-white/3 border border-white/8 rounded-xl p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-white/30 mb-2">Implementation Instructions</p>
-                    <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{idea.implementation_notes}</p>
-                  </div>
-                )}
               </div>
             )}
           </div>
