@@ -19,6 +19,8 @@ function AdminContent() {
   const [newTag, setNewTag] = useState('')
   const [loading, setLoading] = useState(true)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ success: boolean; message: string } | null>(null)
 
   useEffect(() => {
     if (authorized) {
@@ -151,6 +153,61 @@ function AdminContent() {
     a.download = `ai-innovation-hub-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  async function importBackup(file: File) {
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const text = await file.text()
+      const backup = JSON.parse(text)
+
+      if (!backup.tables) throw new Error('Invalid backup file — missing tables key.')
+
+      const { ideas, tags, idea_tags, likes, comments, implementation_reports } = backup.tables
+
+      // Restore in dependency order: tags → ideas → joins/reactions
+      if (tags?.length) {
+        const { error } = await supabase.from('tags').upsert(tags, { onConflict: 'id' })
+        if (error) throw new Error(`Tags: ${error.message}`)
+      }
+
+      if (ideas?.length) {
+        const { error } = await supabase.from('ideas').upsert(ideas, { onConflict: 'id' })
+        if (error) throw new Error(`Ideas: ${error.message}`)
+      }
+
+      if (idea_tags?.length) {
+        const { error } = await supabase.from('idea_tags').upsert(idea_tags, { onConflict: 'idea_id,tag_id' })
+        if (error) throw new Error(`Idea tags: ${error.message}`)
+      }
+
+      if (likes?.length) {
+        const { error } = await supabase.from('likes').upsert(likes, { onConflict: 'id' })
+        if (error) throw new Error(`Likes: ${error.message}`)
+      }
+
+      if (comments?.length) {
+        const { error } = await supabase.from('comments').upsert(comments, { onConflict: 'id' })
+        if (error) throw new Error(`Comments: ${error.message}`)
+      }
+
+      if (implementation_reports?.length) {
+        const { error } = await supabase.from('implementation_reports').upsert(implementation_reports, { onConflict: 'id' })
+        if (error) throw new Error(`Implementation reports: ${error.message}`)
+      }
+
+      const summary = backup.summary
+      setImportResult({
+        success: true,
+        message: `Restored successfully — ${summary?.ideas ?? ideas?.length ?? 0} ideas, ${summary?.tags ?? tags?.length ?? 0} tags, ${summary?.likes ?? likes?.length ?? 0} likes, ${summary?.comments ?? comments?.length ?? 0} comments.`
+      })
+      fetchIdeas()
+      fetchTags()
+    } catch (err: any) {
+      setImportResult({ success: false, message: err.message ?? 'Unknown error during import.' })
+    }
+    setImporting(false)
   }
 
   if (!authorized) {
@@ -313,6 +370,39 @@ function AdminContent() {
                   className="bg-gray-800 hover:bg-gray-900 text-white px-6 py-2.5 rounded-xl font-medium transition-colors text-sm">
                   📥 Download Ideas CSV
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Import / Restore */}
+          <div className="bg-white border border-orange-200 rounded-2xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">♻️</div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Restore from Backup</h2>
+                <p className="text-gray-500 text-sm mb-1">Upload a <code className="bg-gray-100 px-1 rounded text-xs">.json</code> backup file to restore all ideas, tags, likes, comments, and implementation reports.</p>
+                <p className="text-amber-600 text-xs mb-4">⚠️ This will upsert (add or overwrite) records by ID. Existing data that isn't in the backup file will not be deleted.</p>
+
+                {importResult && (
+                  <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium ${importResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {importResult.success ? '✅ ' : '❌ '}{importResult.message}
+                  </div>
+                )}
+
+                <label className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium text-sm cursor-pointer transition-colors ${importing ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}>
+                  {importing ? '⏳ Restoring...' : '♻️ Upload Backup File'}
+                  <input
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    disabled={importing}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) importBackup(file)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
               </div>
             </div>
           </div>
