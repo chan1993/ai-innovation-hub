@@ -20,6 +20,7 @@ export type Idea = {
   outcome: string
   person_name: string
   person_email: string
+  team?: string
   status: 'Idea' | 'In Progress' | 'Implemented' | 'Archived'
   views: number
   links: IdeaLinks

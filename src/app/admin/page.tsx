@@ -142,6 +142,7 @@ function AdminContent() {
         title: row.project ?? '',
         idea: row.idea ?? '',
         person: row.person_name ?? '',
+        team: row.team ?? '',
         status: row.status ?? '',
         ai_platforms: (row.ai_platforms ?? []).join('; '),
         tags: (row.tags ?? []).map((t: any) => t.tag?.name).filter(Boolean).join('; '),

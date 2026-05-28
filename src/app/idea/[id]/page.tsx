@@ -32,7 +32,7 @@ export default function IdeaDetailPage() {
   const [emailError, setEmailError] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState<{
-    project: string; idea: string
+    project: string; idea: string; team: string
     status: string; time_to_implement: string; selectedTags: string[]
     github: string; sharepoint: string; references: string[]
     poc_emails: string; ai_platforms: string[]; implementation_notes: string
@@ -120,6 +120,7 @@ export default function IdeaDetailPage() {
     setEditForm({
       project: idea?.project ?? '',
       idea: idea?.idea ?? '',
+      team: idea?.team ?? '',
       status: idea?.status ?? 'Idea',
       time_to_implement: idea?.time_to_implement ?? '',
       selectedTags: idea?.tags?.map((t) => t.id) ?? [],
@@ -151,6 +152,7 @@ export default function IdeaDetailPage() {
       project: editForm.project.trim() || null,
       idea: editForm.idea,
       outcome: editForm.idea,
+      team: editForm.team || null,
       status: editForm.status,
       time_to_implement: editForm.time_to_implement || null,
       links,
@@ -254,6 +256,29 @@ export default function IdeaDetailPage() {
             ) : (
               <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusInfo.className}`}>{statusInfo.label}</span>
             )}
+
+            {isEditing ? (
+              <select value={editForm?.team ?? ''} onChange={(e) => setEditForm((f) => f ? { ...f, team: e.target.value } : f)}
+                className="border border-white/10 rounded-lg px-2 py-1 text-xs text-white bg-[#0d1430]">
+                <option value="" className="bg-[#0d1430] text-white">Select team</option>
+                <option value="Community" className="bg-[#0d1430] text-white">Community</option>
+                <option value="PDM" className="bg-[#0d1430] text-white">PDM</option>
+                <option value="Tech" className="bg-[#0d1430] text-white">Tech</option>
+                <option value="Consulting - East 1" className="bg-[#0d1430] text-white">Consulting - East 1</option>
+                <option value="Consulting - East 2" className="bg-[#0d1430] text-white">Consulting - East 2</option>
+                <option value="Consulting - East 3" className="bg-[#0d1430] text-white">Consulting - East 3</option>
+                <option value="Consulting - East 4" className="bg-[#0d1430] text-white">Consulting - East 4</option>
+                <option value="Consulting - East 5" className="bg-[#0d1430] text-white">Consulting - East 5</option>
+                <option value="Consulting - East 6" className="bg-[#0d1430] text-white">Consulting - East 6</option>
+                <option value="Consulting - East 7" className="bg-[#0d1430] text-white">Consulting - East 7</option>
+                <option value="Consulting - East 8" className="bg-[#0d1430] text-white">Consulting - East 8</option>
+                <option value="Consulting - West 1" className="bg-[#0d1430] text-white">Consulting - West 1</option>
+                <option value="Consulting - West 2" className="bg-[#0d1430] text-white">Consulting - West 2</option>
+                <option value="Other" className="bg-[#0d1430] text-white">Other</option>
+              </select>
+            ) : idea.team ? (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/8 text-white/50 border border-white/10">{idea.team}</span>
+            ) : null}
 
             {isEditing ? (
               <select value={editForm?.time_to_implement ?? ''} onChange={(e) => setEditForm((f) => f ? { ...f, time_to_implement: e.target.value } : f)}

@@ -15,9 +15,11 @@ export default function SubmitPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const AI_PLATFORMS = ['Galen', 'Claude', 'ChatGPT', 'Gemini', 'Copilot', 'Cursor', 'Perplexity', 'Other']
+  const TEAMS = ['Community', 'PDM', 'Tech', 'Consulting - East 1', 'Consulting - East 2', 'Consulting - East 3', 'Consulting - East 4', 'Consulting - East 5', 'Consulting - East 6', 'Consulting - East 7', 'Consulting - East 8', 'Consulting - West 1', 'Consulting - West 2', 'Other']
 
   const [form, setForm] = useState({
     person_email: '',
+    team: '',
     project: '',
     poc_emails: '',
     idea: '',
@@ -96,6 +98,7 @@ export default function SubmitPage() {
       .from('ideas')
       .insert({
         project: form.project.trim() || null,
+        team: form.team || null,
         idea: form.idea.trim(),
         outcome: form.idea.trim(),
         person_name,
@@ -163,6 +166,30 @@ export default function SubmitPage() {
               </p>
             )}
             {errors.person_email && <p className="text-red-400 text-xs mt-1">{errors.person_email}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/70 mb-1.5">Team</label>
+            <select value={form.team} onChange={(e) => set('team', e.target.value)}
+              className={inputCls('team')}>
+              <option value="" className="bg-[#0d1430] text-white">Select your team</option>
+              <option value="Community" className="bg-[#0d1430] text-white">Community</option>
+              <option value="PDM" className="bg-[#0d1430] text-white">PDM</option>
+              <option value="Tech" className="bg-[#0d1430] text-white">Tech</option>
+              <optgroup label="Consulting">
+                <option value="Consulting - East 1" className="bg-[#0d1430] text-white">Consulting - East 1</option>
+                <option value="Consulting - East 2" className="bg-[#0d1430] text-white">Consulting - East 2</option>
+                <option value="Consulting - East 3" className="bg-[#0d1430] text-white">Consulting - East 3</option>
+                <option value="Consulting - East 4" className="bg-[#0d1430] text-white">Consulting - East 4</option>
+                <option value="Consulting - East 5" className="bg-[#0d1430] text-white">Consulting - East 5</option>
+                <option value="Consulting - East 6" className="bg-[#0d1430] text-white">Consulting - East 6</option>
+                <option value="Consulting - East 7" className="bg-[#0d1430] text-white">Consulting - East 7</option>
+                <option value="Consulting - East 8" className="bg-[#0d1430] text-white">Consulting - East 8</option>
+                <option value="Consulting - West 1" className="bg-[#0d1430] text-white">Consulting - West 1</option>
+                <option value="Consulting - West 2" className="bg-[#0d1430] text-white">Consulting - West 2</option>
+              </optgroup>
+              <option value="Other" className="bg-[#0d1430] text-white">Other</option>
+            </select>
           </div>
 
           <div>
