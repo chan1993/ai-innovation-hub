@@ -6,6 +6,7 @@ import IdeaCard from '@/components/IdeaCard'
 import FilterBar, { Filters } from '@/components/FilterBar'
 import { getTimeFilterDate } from '@/lib/utils'
 import Link from 'next/link'
+import Fuse from 'fuse.js'
 
 const DEFAULT_FILTERS: Filters = {
   search: '',
@@ -55,11 +56,26 @@ export default function Home() {
 
     if (error) { setLoading(false); return }
 
+    const { data: implReports } = await supabase
+      .from('implementation_reports')
+      .select('idea_id, status')
+
+    const implMap: Record<string, { working: number; not_working: number; stuck: number }> = {}
+    for (const r of implReports ?? []) {
+      if (!implMap[r.idea_id]) implMap[r.idea_id] = { working: 0, not_working: 0, stuck: 0 }
+      if (r.status === 'working') implMap[r.idea_id].working++
+      else if (r.status === 'not_working') implMap[r.idea_id].not_working++
+      else if (r.status === 'stuck') implMap[r.idea_id].stuck++
+    }
+
     let results: Idea[] = (data || []).map((row: any) => ({
       ...row,
       tags: row.tags?.map((t: any) => t.tag).filter(Boolean) ?? [],
       like_count: row.like_count?.[0]?.count ?? 0,
       comment_count: row.comment_count?.[0]?.count ?? 0,
+      impl_working: implMap[row.id]?.working ?? 0,
+      impl_not_working: implMap[row.id]?.not_working ?? 0,
+      impl_stuck: implMap[row.id]?.stuck ?? 0,
     }))
 
     if (filters.tag) {
@@ -67,14 +83,12 @@ export default function Home() {
     }
 
     if (filters.search) {
-      const q = filters.search.toLowerCase()
-      results = results.filter(
-        (i) =>
-          i.idea.toLowerCase().includes(q) ||
-          i.project.toLowerCase().includes(q) ||
-          i.person_name.toLowerCase().includes(q) ||
-          i.outcome.toLowerCase().includes(q)
-      )
+      const fuse = new Fuse(results, {
+        keys: ['idea', 'outcome', 'project', 'person_name'],
+        threshold: 0.35,
+        ignoreLocation: true,
+      })
+      results = fuse.search(filters.search).map((r) => r.item)
     }
 
     if (filters.sort === 'likes') {
@@ -94,6 +108,7 @@ export default function Home() {
       <div className="bg-gradient-to-br from-[#4f86f7]/20 via-[#0d1430] to-[#0d1430] border border-[#4f86f7]/20 rounded-2xl px-6 py-5 mb-6 flex items-center justify-between shadow-sm">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Ideas Feed</h1>
+          <p className="text-white/35 text-xs mt-0.5">A shared space to surface, try, and track AI ideas across ZoomRx.</p>
           <p className="text-white/50 text-sm mt-1">
             {loading ? 'Loading...' : `${ideas.length} idea${ideas.length !== 1 ? 's' : ''} across ZoomRx`}
           </p>

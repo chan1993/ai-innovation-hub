@@ -23,11 +23,18 @@ export type Idea = {
   status: 'Idea' | 'In Progress' | 'Implemented' | 'Archived'
   views: number
   links: IdeaLinks
+  poc_emails: string[]
+  ai_platforms: string[]
+  implementation_notes?: string
   created_at: string
   updated_at: string
+  time_to_implement?: string
   tags?: Tag[]
   like_count?: number
   comment_count?: number
+  impl_working?: number
+  impl_not_working?: number
+  impl_stuck?: number
 }
 
 export type Tag = {
@@ -48,5 +55,13 @@ export type Comment = {
   idea_id: string
   person_name: string
   content: string
+  created_at: string
+}
+
+export type ImplementationReport = {
+  id: string
+  idea_id: string
+  person_name: string
+  status: 'working' | 'not_working' | 'stuck'
   created_at: string
 }

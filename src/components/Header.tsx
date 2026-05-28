@@ -17,6 +17,7 @@ export default function Header() {
     { href: '/', label: 'Ideas' },
     { href: '/submit', label: 'Submit Idea' },
     { href: '/leaderboard', label: 'Leaderboard' },
+    { href: '/about', label: 'About' },
   ]
 
   return (

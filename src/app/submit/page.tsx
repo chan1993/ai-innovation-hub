@@ -14,16 +14,20 @@ export default function SubmitPage() {
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  const AI_PLATFORMS = ['Galen', 'Claude', 'ChatGPT', 'Gemini', 'Copilot', 'Cursor', 'Perplexity', 'Other']
+
   const [form, setForm] = useState({
     person_email: '',
     project: '',
+    poc_emails: '',
     idea: '',
-    outcome: '',
     status: 'Idea',
+    time_to_implement: '',
     selectedTags: [] as string[],
+    ai_platforms: [] as string[],
     github: '',
-    demo: '',
     sharepoint: '',
+    implementation_notes: '',
     references: [''],
   })
 
@@ -57,6 +61,13 @@ export default function SubmitPage() {
     })
   }
 
+  function parsePocEmails(raw: string): string[] {
+    return raw
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.endsWith(`@${ALLOWED_DOMAIN}`))
+  }
+
   function validate() {
     const e: Record<string, string> = {}
     if (!form.person_email.trim()) e.person_email = 'Required'
@@ -64,7 +75,6 @@ export default function SubmitPage() {
       e.person_email = `Must be a @${ALLOWED_DOMAIN} email`
     if (!form.project.trim()) e.project = 'Required'
     if (!form.idea.trim()) e.idea = 'Required'
-    if (!form.outcome.trim()) e.outcome = 'Required'
     return e
   }
 
@@ -78,7 +88,6 @@ export default function SubmitPage() {
     const person_name = parseNameFromEmail(email)
     const links = {
       github: form.github.trim() || undefined,
-      demo: form.demo.trim() || undefined,
       sharepoint: form.sharepoint.trim() || undefined,
       references: form.references.filter((r) => r.trim()),
     }
@@ -86,13 +95,17 @@ export default function SubmitPage() {
     const { data: idea, error } = await supabase
       .from('ideas')
       .insert({
-        project: form.project.trim(),
+        project: form.project.trim() || null,
         idea: form.idea.trim(),
-        outcome: form.outcome.trim(),
+        outcome: form.idea.trim(),
         person_name,
         person_email: email,
         status: form.status,
+        time_to_implement: form.time_to_implement || null,
         links,
+        poc_emails: parsePocEmails(form.poc_emails),
+        ai_platforms: form.ai_platforms,
+        implementation_notes: form.implementation_notes.trim() || null,
       })
       .select()
       .single()
@@ -154,32 +167,55 @@ export default function SubmitPage() {
 
           <div>
             <label className="block text-sm font-medium text-white/70 mb-1.5">
-              Project <span className="text-red-400">*</span>
+              Idea Title <span className="text-red-400">*</span>
             </label>
             <input type="text" value={form.project} onChange={(e) => set('project', e.target.value)}
-              placeholder="e.g. Claims Processing, Patient Outreach"
+              placeholder="e.g. AI Transcript Summariser, Auto-Slide Generator"
               className={inputCls('project')} />
             {errors.project && <p className="text-red-400 text-xs mt-1">{errors.project}</p>}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-white/70 mb-1.5">
-              The Idea <span className="text-red-400">*</span>
+              Points of Contact <span className="text-white/30 font-normal text-xs">(optional)</span>
             </label>
-            <textarea rows={4} value={form.idea} onChange={(e) => set('idea', e.target.value)}
-              placeholder="Describe the AI idea clearly and concisely..."
-              className={inputCls('idea')} />
-            {errors.idea && <p className="text-red-400 text-xs mt-1">{errors.idea}</p>}
+            <input
+              type="text"
+              value={form.poc_emails}
+              onChange={(e) => set('poc_emails', e.target.value)}
+              placeholder={`e.g. john.doe@${ALLOWED_DOMAIN}, jane.smith@${ALLOWED_DOMAIN}`}
+              className={inputCls('poc_emails')}
+            />
+            {form.poc_emails.trim() && (() => {
+              const names = form.poc_emails
+                .split(',')
+                .map((e) => e.trim().toLowerCase())
+                .filter((e) => e.endsWith(`@${ALLOWED_DOMAIN}`))
+                .map((e) => parseNameFromEmail(e))
+              return names.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {names.map((name, i) => (
+                    <span key={i} className="flex items-center gap-1 bg-[#4f86f7]/10 text-[#4f86f7] text-xs px-2.5 py-1 rounded-full border border-[#4f86f7]/20">
+                      <span className="w-4 h-4 rounded-full bg-[#4f86f7] flex items-center justify-center text-white font-bold text-[9px]">
+                        {name.charAt(0)}
+                      </span>
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              ) : null
+            })()}
+            <p className="text-white/25 text-xs mt-1">Separate multiple emails with commas</p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-white/70 mb-1.5">
-              Expected Outcome <span className="text-red-400">*</span>
+              Idea Description & Expected Leverage <span className="text-red-400">*</span>
             </label>
-            <textarea rows={3} value={form.outcome} onChange={(e) => set('outcome', e.target.value)}
-              placeholder="What result or improvement do you expect?"
-              className={inputCls('outcome')} />
-            {errors.outcome && <p className="text-red-400 text-xs mt-1">{errors.outcome}</p>}
+            <textarea rows={6} value={form.idea} onChange={(e) => set('idea', e.target.value)}
+              placeholder="Describe the AI idea and the expected benefit or improvement it will bring to the team..."
+              className={inputCls('idea')} />
+            {errors.idea && <p className="text-red-400 text-xs mt-1">{errors.idea}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -187,11 +223,29 @@ export default function SubmitPage() {
               <label className="block text-sm font-medium text-white/70 mb-1.5">Stage</label>
               <select value={form.status} onChange={(e) => set('status', e.target.value)}
                 className={inputCls('status')}>
-                <option value="Idea">💡 Idea</option>
-                <option value="In Progress">🔄 In Progress</option>
-                <option value="Implemented">✅ Implemented</option>
+                <option value="Idea" className="bg-[#0d1430] text-white">💡 Idea</option>
+                <option value="In Progress" className="bg-[#0d1430] text-white">🔄 In Progress</option>
+                <option value="Implemented" className="bg-[#0d1430] text-white">✅ Implemented</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-white/70 mb-1.5">
+                Time to Implement <span className="text-white/30 font-normal text-xs">(optional)</span>
+              </label>
+              <select value={form.time_to_implement} onChange={(e) => set('time_to_implement', e.target.value)}
+                className={inputCls('time_to_implement')}>
+                <option value="" className="bg-[#0d1430] text-white">Not sure</option>
+                <option value="< 5 mins" className="bg-[#0d1430] text-white">Less than 5 minutes</option>
+                <option value="5–15 mins" className="bg-[#0d1430] text-white">5 to 15 minutes</option>
+                <option value="15–30 mins" className="bg-[#0d1430] text-white">15 to 30 minutes</option>
+                <option value="< 1 hour" className="bg-[#0d1430] text-white">Less than 1 hour</option>
+                <option value="1–2 hours" className="bg-[#0d1430] text-white">1 to 2 hours</option>
+                <option value="2+ hours" className="bg-[#0d1430] text-white">More than 2 hours</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="block text-sm font-medium text-white/70 mb-1.5">Tags</label>
               <div className="flex flex-wrap gap-2 pt-1">
@@ -210,36 +264,78 @@ export default function SubmitPage() {
           </div>
         </div>
 
-        {/* Section 2 — Links */}
-        <div className="border-t border-white/10 bg-white/3 p-8 space-y-4">
+        {/* Section 2 — Links & Resources */}
+        <div className="border-t border-white/10 bg-white/3 p-8 space-y-6">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold text-white/40 uppercase tracking-wider">Links & Resources</span>
             <span className="text-xs text-white/25">(all optional)</span>
           </div>
 
+          {/* AI Platforms */}
           <div>
-            <label className="block text-xs font-medium text-white/40 mb-1">GitHub / Gist</label>
+            <label className="block text-sm font-semibold text-white/70 mb-2">AI Platform(s) Used</label>
+            <div className="flex flex-wrap gap-2">
+              {AI_PLATFORMS.map((platform) => (
+                <button
+                  key={platform}
+                  type="button"
+                  onClick={() => setForm((f) => ({
+                    ...f,
+                    ai_platforms: f.ai_platforms.includes(platform)
+                      ? f.ai_platforms.filter((p) => p !== platform)
+                      : [...f.ai_platforms, platform],
+                  }))}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    form.ai_platforms.includes(platform)
+                      ? 'bg-[#4f86f7] text-white border-[#4f86f7]'
+                      : 'bg-white/5 text-white/50 border-white/10 hover:border-[#4f86f7]/50'
+                  }`}
+                >
+                  {platform}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* GitHub */}
+          <div>
+            <label className="block text-sm font-semibold text-white/70 mb-1">GitHub / Gist</label>
             <input type="url" value={form.github} onChange={(e) => set('github', e.target.value)}
               placeholder="https://github.com/..."
               className={inputCls('github')} />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-white/40 mb-1">Demo — Loom video, hosted app, Colab notebook</label>
-            <input type="url" value={form.demo} onChange={(e) => set('demo', e.target.value)}
-              placeholder="https://loom.com/..."
-              className={inputCls('demo')} />
+          {/* SharePoint + Instructions */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-semibold text-white/70 mb-1">SharePoint Link</label>
+              <div className="bg-[#4f86f7]/8 border border-[#4f86f7]/20 rounded-xl px-4 py-3 mb-2">
+                <p className="text-xs text-[#4f86f7]/80 leading-relaxed">
+                  📁 Upload all files to a shared SharePoint folder and set access to <strong>"Everyone at ZoomRx"</strong> — this ensures anyone can open your files without needing to request access.
+                </p>
+              </div>
+              <input type="url" value={form.sharepoint} onChange={(e) => set('sharepoint', e.target.value)}
+                placeholder="https://zoomrx.sharepoint.com/..."
+                className={inputCls('sharepoint')} />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-white/70 mb-1">Implementation Instructions</label>
+              <p className="text-xs text-white/25 mb-2">Step-by-step instructions to replicate this idea. Write them here or paste from your SharePoint doc.</p>
+              <textarea
+                rows={5}
+                value={form.implementation_notes}
+                onChange={(e) => set('implementation_notes', e.target.value)}
+                placeholder={`e.g.\n1. Go to ChatGPT and open a new conversation\n2. Upload the transcript file\n3. Use the following prompt: "Summarise this into key themes..."\n4. Copy the output into the report template on SharePoint`}
+                className={inputCls('implementation_notes')}
+              />
+            </div>
           </div>
 
+          {/* References */}
           <div>
-            <label className="block text-xs font-medium text-white/40 mb-1">SharePoint</label>
-            <input type="url" value={form.sharepoint} onChange={(e) => set('sharepoint', e.target.value)}
-              placeholder="https://zoomrx.sharepoint.com/..."
-              className={inputCls('sharepoint')} />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-white/40 mb-1">Reference links — papers, articles, tools</label>
+            <label className="block text-sm font-semibold text-white/70 mb-1">Reference Links</label>
+            <p className="text-xs text-white/30 mb-2">Papers, articles, tools</p>
             <div className="space-y-2">
               {form.references.map((ref, i) => (
                 <div key={i} className="flex gap-2">

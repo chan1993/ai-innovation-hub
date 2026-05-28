@@ -5,11 +5,14 @@ import { useParams } from 'next/navigation'
 import { supabase, Idea, Tag, IdeaLinks } from '@/lib/supabase'
 import LikeButton from '@/components/LikeButton'
 import CommentSection from '@/components/CommentSection'
+import ImplementationStatus from '@/components/ImplementationStatus'
 import { formatDistanceToNow, parseNameFromEmail } from '@/lib/utils'
 import { getStoredEmail, setStoredEmail } from '@/lib/localStorage'
 import Link from 'next/link'
 
 const ALLOWED_DOMAIN = process.env.NEXT_PUBLIC_ALLOWED_DOMAIN!
+
+const AI_PLATFORMS = ['Galen', 'Claude', 'ChatGPT', 'Gemini', 'Copilot', 'Cursor', 'Perplexity', 'Other']
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   'Idea': { label: '💡 Idea', className: 'bg-blue-500/15 text-blue-300' },
@@ -29,11 +32,27 @@ export default function IdeaDetailPage() {
   const [emailError, setEmailError] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState<{
-    project: string; idea: string; outcome: string
-    status: string; selectedTags: string[]
-    github: string; demo: string; sharepoint: string; references: string[]
+    project: string; idea: string
+    status: string; time_to_implement: string; selectedTags: string[]
+    github: string; sharepoint: string; references: string[]
+    poc_emails: string; ai_platforms: string[]; implementation_notes: string
   } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [similarIdeas, setSimilarIdeas] = useState<{ id: string; idea: string; project: string; s_no: number; person_name: string; status: string; score: number }[]>([])
+
+  const STOPWORDS = new Set(['a','an','the','to','and','or','of','in','on','for','with','that','is','are','use','using','into'])
+
+  function tokenize(text: string): Set<string> {
+    return new Set(
+      text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w && !STOPWORDS.has(w))
+    )
+  }
+
+  function jaccardScore(a: Set<string>, b: Set<string>): number {
+    const intersection = [...a].filter((w) => b.has(w)).length
+    const union = new Set([...a, ...b]).size
+    return union === 0 ? 0 : intersection / union
+  }
 
   useEffect(() => {
     fetchIdea()
@@ -52,12 +71,29 @@ export default function IdeaDetailPage() {
       .single()
 
     if (data) {
-      setIdea({
+      const currentIdea = {
         ...data,
         tags: data.tags?.map((t: any) => t.tag).filter(Boolean) ?? [],
         like_count: data.like_count?.[0]?.count ?? 0,
         links: data.links ?? {},
-      })
+      }
+      setIdea(currentIdea)
+
+      const { data: allIdeas } = await supabase
+        .from('ideas')
+        .select('id, idea, project, s_no, person_name, status')
+        .neq('status', 'Archived')
+        .neq('id', id)
+
+      if (allIdeas) {
+        const currentTokens = tokenize(data.idea)
+        const scored = allIdeas
+          .map((other: any) => ({ ...other, score: jaccardScore(currentTokens, tokenize(other.idea)) }))
+          .filter((o: any) => o.score > 0.1)
+          .sort((a: any, b: any) => b.score - a.score)
+          .slice(0, 3)
+        setSimilarIdeas(scored)
+      }
     }
     setLoading(false)
   }
@@ -84,13 +120,15 @@ export default function IdeaDetailPage() {
     setEditForm({
       project: idea?.project ?? '',
       idea: idea?.idea ?? '',
-      outcome: idea?.outcome ?? '',
       status: idea?.status ?? 'Idea',
+      time_to_implement: idea?.time_to_implement ?? '',
       selectedTags: idea?.tags?.map((t) => t.id) ?? [],
       github: links.github ?? '',
-      demo: links.demo ?? '',
       sharepoint: links.sharepoint ?? '',
       references: links.references?.length ? links.references : [''],
+      poc_emails: (idea?.poc_emails ?? []).join(', '),
+      ai_platforms: idea?.ai_platforms ?? [],
+      implementation_notes: idea?.implementation_notes ?? '',
     })
     setIsEditing(true)
   }
@@ -100,17 +138,25 @@ export default function IdeaDetailPage() {
     setSaving(true)
     const links: IdeaLinks = {
       github: editForm.github.trim() || undefined,
-      demo: editForm.demo.trim() || undefined,
       sharepoint: editForm.sharepoint.trim() || undefined,
       references: editForm.references.filter((r) => r.trim()),
     }
 
+    const poc_emails = editForm.poc_emails
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.endsWith(`@${ALLOWED_DOMAIN}`))
+
     await supabase.from('ideas').update({
-      project: editForm.project,
+      project: editForm.project.trim() || null,
       idea: editForm.idea,
-      outcome: editForm.outcome,
+      outcome: editForm.idea,
       status: editForm.status,
+      time_to_implement: editForm.time_to_implement || null,
       links,
+      poc_emails,
+      ai_platforms: editForm.ai_platforms,
+      implementation_notes: editForm.implementation_notes.trim() || null,
     }).eq('id', idea.id)
 
     await supabase.from('idea_tags').delete().eq('idea_id', idea.id)
@@ -181,26 +227,48 @@ export default function IdeaDetailPage() {
       <div className="bg-[#0d1430] border border-white/10 rounded-2xl p-8 mb-6 overflow-hidden relative">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#4f86f7] to-violet-500" />
 
+        {/* Title */}
+        <div className="mb-5">
+          {isEditing ? (
+            <input
+              value={editForm?.project ?? ''}
+              onChange={(e) => setEditForm((f) => f ? { ...f, project: e.target.value } : f)}
+              placeholder="Idea Title"
+              className="w-full text-2xl font-bold text-white bg-transparent border-b border-white/20 pb-1 focus:outline-none focus:border-[#4f86f7] placeholder-white/20"
+            />
+          ) : (
+            <h1 className="text-2xl font-bold text-white leading-snug">{idea.project || 'Untitled Idea'}</h1>
+          )}
+        </div>
+
         {/* Badges row */}
         <div className="flex items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-2 flex-wrap">
             {isEditing ? (
-              <input value={editForm?.project ?? ''} onChange={(e) => setEditForm((f) => f ? { ...f, project: e.target.value } : f)}
-                className="border border-white/10 rounded-lg px-3 py-1 text-sm text-white bg-white/5" />
-            ) : (
-              <span className="text-sm font-medium text-[#4f86f7] bg-[#4f86f7]/15 px-3 py-1 rounded-full">{idea.project}</span>
-            )}
-
-            {isEditing ? (
               <select value={editForm?.status ?? 'Idea'} onChange={(e) => setEditForm((f) => f ? { ...f, status: e.target.value } : f)}
                 className="border border-white/10 rounded-lg px-2 py-1 text-xs text-white bg-[#0d1430]">
-                <option value="Idea">💡 Idea</option>
-                <option value="In Progress">🔄 In Progress</option>
-                <option value="Implemented">✅ Implemented</option>
+                <option value="Idea" className="bg-[#0d1430] text-white">💡 Idea</option>
+                <option value="In Progress" className="bg-[#0d1430] text-white">🔄 In Progress</option>
+                <option value="Implemented" className="bg-[#0d1430] text-white">✅ Implemented</option>
               </select>
             ) : (
               <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusInfo.className}`}>{statusInfo.label}</span>
             )}
+
+            {isEditing ? (
+              <select value={editForm?.time_to_implement ?? ''} onChange={(e) => setEditForm((f) => f ? { ...f, time_to_implement: e.target.value } : f)}
+                className="border border-white/10 rounded-lg px-2 py-1 text-xs text-white bg-[#0d1430]">
+                <option value="" className="bg-[#0d1430] text-white">No time estimate</option>
+                <option value="< 5 mins" className="bg-[#0d1430] text-white">Less than 5 minutes</option>
+                <option value="5–15 mins" className="bg-[#0d1430] text-white">5 to 15 minutes</option>
+                <option value="15–30 mins" className="bg-[#0d1430] text-white">15 to 30 minutes</option>
+                <option value="< 1 hour" className="bg-[#0d1430] text-white">Less than 1 hour</option>
+                <option value="1–2 hours" className="bg-[#0d1430] text-white">1 to 2 hours</option>
+                <option value="2+ hours" className="bg-[#0d1430] text-white">More than 2 hours</option>
+              </select>
+            ) : idea.time_to_implement ? (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/8 text-white/50 border border-white/10">⏱ {idea.time_to_implement}</span>
+            ) : null}
 
             {isEditing
               ? allTags.map((tag) => (
@@ -233,50 +301,87 @@ export default function IdeaDetailPage() {
           )}
         </div>
 
-        {/* Idea */}
-        <div className="mb-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/30 mb-1">The Idea</h2>
+        {/* Idea Description & Expected Leverage */}
+        <div className="mb-6">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/30 mb-1">Idea Description & Expected Leverage</h2>
           {isEditing ? (
-            <textarea rows={4} value={editForm?.idea ?? ''}
+            <textarea rows={6} value={editForm?.idea ?? ''}
               onChange={(e) => setEditForm((f) => f ? { ...f, idea: e.target.value } : f)}
               className={inputCls} />
           ) : (
-            <p className="text-white text-base leading-relaxed">{idea.idea}</p>
+            <p className="text-white text-base leading-relaxed whitespace-pre-wrap">{idea.idea}</p>
           )}
         </div>
 
-        {/* Outcome */}
-        <div className="mb-6">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/30 mb-1">Expected Outcome</h2>
-          {isEditing ? (
-            <textarea rows={3} value={editForm?.outcome ?? ''}
-              onChange={(e) => setEditForm((f) => f ? { ...f, outcome: e.target.value } : f)}
-              className={inputCls} />
-          ) : (
-            <p className="text-white/70 leading-relaxed">{idea.outcome}</p>
-          )}
-        </div>
-
-        {/* Links */}
-        {(isEditing || links.github || links.demo || links.sharepoint || (links.references?.length ?? 0) > 0) && (
+        {/* AI Platforms */}
+        {(isEditing || (idea.ai_platforms?.length ?? 0) > 0) && (
           <div className="mb-6">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-white/30 mb-3">Links</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-white/30 mb-3">AI Platforms Used</h2>
             {isEditing ? (
-              <div className="space-y-2">
-                {[
-                  { key: 'github', label: 'GitHub / Gist', placeholder: 'https://github.com/...' },
-                  { key: 'demo', label: 'Demo', placeholder: 'https://loom.com/...' },
-                  { key: 'sharepoint', label: 'SharePoint', placeholder: 'https://zoomrx.sharepoint.com/...' },
-                ].map(({ key, label, placeholder }) => (
-                  <div key={key}>
-                    <label className="block text-xs text-white/30 mb-1">{label}</label>
-                    <input type="url"
-                      value={(editForm as any)?.[key] ?? ''}
-                      onChange={(e) => setEditForm((f) => f ? { ...f, [key]: e.target.value } : f)}
-                      placeholder={placeholder}
-                      className={inputCls} />
-                  </div>
+              <div className="flex flex-wrap gap-2">
+                {AI_PLATFORMS.map((platform) => (
+                  <button key={platform} type="button"
+                    onClick={() => setEditForm((f) => f ? {
+                      ...f,
+                      ai_platforms: f.ai_platforms.includes(platform)
+                        ? f.ai_platforms.filter((p) => p !== platform)
+                        : [...f.ai_platforms, platform]
+                    } : f)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                      editForm?.ai_platforms.includes(platform)
+                        ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                        : 'bg-white/5 text-white/40 border-white/10 hover:border-white/20'
+                    }`}>
+                    {platform}
+                  </button>
                 ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {idea.ai_platforms?.map((platform) => (
+                  <span key={platform} className="px-3 py-1.5 rounded-full text-xs font-medium bg-violet-500/15 text-violet-300 border border-violet-500/30">
+                    {platform}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Links & Resources */}
+        {(isEditing || links.github || links.sharepoint || (links.references?.length ?? 0) > 0) && (
+          <div className="mb-6">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-white/30 mb-3">Links & Resources</h2>
+            {isEditing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-white/30 mb-1">GitHub / Gist</label>
+                  <input type="url"
+                    value={editForm?.github ?? ''}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, github: e.target.value } : f)}
+                    placeholder="https://github.com/..."
+                    className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/30 mb-1">SharePoint</label>
+                  <div className="bg-[#4f86f7]/8 border border-[#4f86f7]/20 rounded-lg px-3 py-2 mb-2 text-xs text-[#4f86f7]/80">
+                    📢 Please share the SharePoint folder/file with <strong>everyone at ZoomRx</strong> so teammates can access without permission issues.
+                  </div>
+                  <input type="url"
+                    value={editForm?.sharepoint ?? ''}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, sharepoint: e.target.value } : f)}
+                    placeholder="https://zoomrx.sharepoint.com/..."
+                    className={inputCls} />
+                  <p className="text-white/25 text-xs mt-1">Include any related files (prompts, templates, datasets, etc.)</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-white/30 mb-2">Implementation Instructions</label>
+                  <textarea rows={4}
+                    value={editForm?.implementation_notes ?? ''}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, implementation_notes: e.target.value } : f)}
+                    placeholder="Step-by-step instructions for others to replicate this idea..."
+                    className={inputCls} />
+                </div>
                 <div>
                   <label className="block text-xs text-white/30 mb-1">Reference links</label>
                   {editForm?.references.map((ref, i) => (
@@ -300,31 +405,81 @@ export default function IdeaDetailPage() {
                 </div>
               </div>
             ) : (
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {links.github && (
+                    <a href={links.github} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-sm text-white/60 hover:text-[#4f86f7] bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
+                      <span>🐙</span> GitHub
+                    </a>
+                  )}
+                  {links.sharepoint && (
+                    <a href={links.sharepoint} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-sm text-white/60 hover:text-[#4f86f7] bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
+                      <span>📁</span> SharePoint
+                    </a>
+                  )}
+                  {links.references?.filter(Boolean).map((ref, i) => (
+                    <a key={i} href={ref} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-sm text-white/60 hover:text-[#4f86f7] bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
+                      <span>🔗</span> Reference {links.references!.filter(Boolean).length > 1 ? i + 1 : ''}
+                    </a>
+                  ))}
+                </div>
+                {idea.implementation_notes && (
+                  <div className="bg-white/3 border border-white/8 rounded-xl p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-white/30 mb-2">Implementation Instructions</p>
+                    <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{idea.implementation_notes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* POCs */}
+        {(isEditing || (idea.poc_emails?.length ?? 0) > 0) && (
+          <div className="mb-6">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-white/30 mb-3">Points of Contact</h2>
+            {isEditing ? (
+              <div>
+                <input
+                  type="text"
+                  value={editForm?.poc_emails ?? ''}
+                  onChange={(e) => setEditForm((f) => f ? { ...f, poc_emails: e.target.value } : f)}
+                  placeholder={`e.g. john.doe@${ALLOWED_DOMAIN}, jane.smith@${ALLOWED_DOMAIN}`}
+                  className={inputCls}
+                />
+                {editForm?.poc_emails.trim() && (() => {
+                  const names = editForm.poc_emails
+                    .split(',')
+                    .map((e) => e.trim().toLowerCase())
+                    .filter((e) => e.endsWith(`@${ALLOWED_DOMAIN}`))
+                    .map((e) => parseNameFromEmail(e))
+                  return names.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {names.map((name, i) => (
+                        <span key={i} className="flex items-center gap-1 bg-[#4f86f7]/10 text-[#4f86f7] text-xs px-2.5 py-1 rounded-full border border-[#4f86f7]/20">
+                          <span className="w-4 h-4 rounded-full bg-[#4f86f7] flex items-center justify-center text-white font-bold text-[9px]">{name.charAt(0)}</span>
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null
+                })()}
+                <p className="text-white/25 text-xs mt-1">Separate multiple emails with commas</p>
+              </div>
+            ) : (
               <div className="flex flex-wrap gap-2">
-                {links.github && (
-                  <a href={links.github} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-sm text-white/60 hover:text-[#4f86f7] bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
-                    <span>🐙</span> GitHub
-                  </a>
-                )}
-                {links.demo && (
-                  <a href={links.demo} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-sm text-white/60 hover:text-[#4f86f7] bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
-                    <span>🎬</span> Demo
-                  </a>
-                )}
-                {links.sharepoint && (
-                  <a href={links.sharepoint} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-sm text-white/60 hover:text-[#4f86f7] bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
-                    <span>📄</span> SharePoint
-                  </a>
-                )}
-                {links.references?.filter(Boolean).map((ref, i) => (
-                  <a key={i} href={ref} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-sm text-white/60 hover:text-[#4f86f7] bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
-                    <span>🔗</span> Reference {links.references!.filter(Boolean).length > 1 ? i + 1 : ''}
-                  </a>
-                ))}
+                {idea.poc_emails?.map((email, i) => {
+                  const name = parseNameFromEmail(email)
+                  return (
+                    <span key={i} className="flex items-center gap-1.5 bg-[#4f86f7]/10 text-[#4f86f7] text-sm px-3 py-1.5 rounded-full border border-[#4f86f7]/20">
+                      <span className="w-5 h-5 rounded-full bg-[#4f86f7] flex items-center justify-center text-white font-bold text-[10px]">{name.charAt(0)}</span>
+                      {name}
+                    </span>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -360,10 +515,31 @@ export default function IdeaDetailPage() {
         </div>
       </div>
 
+      <ImplementationStatus ideaId={idea.id} />
+
       {/* Comments */}
-      <div className="bg-[#0d1430] border border-white/10 rounded-2xl p-8">
+      <div className="bg-[#0d1430] border border-white/10 rounded-2xl p-8 mb-6">
         <CommentSection ideaId={idea.id} />
       </div>
+
+      {similarIdeas.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wide mb-3">Similar Ideas</h3>
+          <div className="space-y-2">
+            {similarIdeas.map((s) => (
+              <Link key={s.id} href={`/idea/${s.id}`} className="block bg-[#0d1430] border border-white/10 rounded-xl px-5 py-4 hover:border-[#4f86f7]/40 transition-colors group">
+                <div className="flex items-center gap-2 mb-1">
+                  {s.project && (
+                    <span className="text-xs font-medium text-[#4f86f7] bg-[#4f86f7]/10 px-2 py-0.5 rounded-full">{s.project}</span>
+                  )}
+                  <span className="text-xs text-white/30">#{s.s_no}</span>
+                </div>
+                <p className="text-sm text-white/80 group-hover:text-white line-clamp-2 transition-colors">{s.idea}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

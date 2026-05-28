@@ -73,6 +73,52 @@ function AdminContent() {
     setTags((prev) => prev.filter((t) => t.id !== id))
   }
 
+  async function exportBackup() {
+    const [
+      { data: ideas },
+      { data: tags },
+      { data: ideaTags },
+      { data: likes },
+      { data: comments },
+      { data: implReports },
+    ] = await Promise.all([
+      supabase.from('ideas').select('*').order('s_no', { ascending: true }),
+      supabase.from('tags').select('*').order('name'),
+      supabase.from('idea_tags').select('*'),
+      supabase.from('likes').select('*').order('created_at'),
+      supabase.from('comments').select('*').order('created_at'),
+      supabase.from('implementation_reports').select('*').order('created_at'),
+    ])
+
+    const backup = {
+      exported_at: new Date().toISOString(),
+      version: '1.0',
+      tables: {
+        ideas: ideas ?? [],
+        tags: tags ?? [],
+        idea_tags: ideaTags ?? [],
+        likes: likes ?? [],
+        comments: comments ?? [],
+        implementation_reports: implReports ?? [],
+      },
+      summary: {
+        ideas: ideas?.length ?? 0,
+        tags: tags?.length ?? 0,
+        likes: likes?.length ?? 0,
+        comments: comments?.length ?? 0,
+        implementation_reports: implReports?.length ?? 0,
+      }
+    }
+
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `ai-innovation-hub-backup-${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function exportCSV() {
     const { data } = await supabase
       .from('ideas')
@@ -238,14 +284,39 @@ function AdminContent() {
       )}
 
       {tab === 'export' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
-          <div className="text-5xl mb-4">📊</div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Export All Ideas</h2>
-          <p className="text-gray-500 text-sm mb-6">Download all ideas as a CSV file including tags and like counts.</p>
-          <button onClick={exportCSV}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-medium transition-colors">
-            📥 Download CSV
-          </button>
+        <div className="space-y-4">
+
+          {/* Full Backup */}
+          <div className="bg-white border-2 border-indigo-200 rounded-2xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">🛡️</div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Full Backup <span className="text-xs font-medium bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full ml-1">Recommended</span></h2>
+                <p className="text-gray-500 text-sm mb-1">Downloads <strong>everything</strong> — all ideas, tags, likes, comments, and implementation reports as a single JSON file.</p>
+                <p className="text-gray-400 text-xs mb-4">Save this regularly. If Supabase or Vercel ever goes down, this file contains your complete dataset and can be used to restore the app.</p>
+                <button onClick={exportBackup}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors text-sm">
+                  🛡️ Download Full Backup (.json)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* CSV Export */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">📊</div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Ideas CSV</h2>
+                <p className="text-gray-500 text-sm mb-4">Download ideas only as a spreadsheet-friendly CSV. Good for sharing with stakeholders or reviewing in Excel.</p>
+                <button onClick={exportCSV}
+                  className="bg-gray-800 hover:bg-gray-900 text-white px-6 py-2.5 rounded-xl font-medium transition-colors text-sm">
+                  📥 Download Ideas CSV
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
       )}
     </div>
