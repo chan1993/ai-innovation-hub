@@ -127,24 +127,41 @@ function AdminContent() {
       .select('*, tags:idea_tags(tag:tags(name)), like_count:likes(count)')
       .order('s_no', { ascending: true })
 
-    if (!data) return
+    if (!data || data.length === 0) return
 
-    const rows = data.map((row: any) => ({
-      s_no: row.s_no,
-      project: row.project,
-      idea: row.idea,
-      outcome: row.outcome,
-      person: row.person_name,
-      impact: row.impact,
-      status: row.status,
-      tags: (row.tags ?? []).map((t: any) => t.tag?.name).filter(Boolean).join('; '),
-      likes: row.like_count?.[0]?.count ?? 0,
-      links: (row.links ?? []).join('; '),
-      date: new Date(row.created_at).toLocaleDateString(),
-    }))
+    const rows = data.map((row: any) => {
+      const links = row.links ?? {}
+      const linkParts = [
+        links.github ? `GitHub: ${links.github}` : '',
+        links.sharepoint ? `SharePoint: ${links.sharepoint}` : '',
+        ...(links.references ?? []).filter(Boolean),
+      ].filter(Boolean)
+
+      return {
+        s_no: row.s_no,
+        title: row.project ?? '',
+        idea: row.idea ?? '',
+        person: row.person_name ?? '',
+        status: row.status ?? '',
+        ai_platforms: (row.ai_platforms ?? []).join('; '),
+        tags: (row.tags ?? []).map((t: any) => t.tag?.name).filter(Boolean).join('; '),
+        time_to_implement: row.time_to_implement ?? '',
+        likes: row.like_count?.[0]?.count ?? 0,
+        views: row.views ?? 0,
+        links: linkParts.join(' | '),
+        implementation_notes: row.implementation_notes ?? '',
+        poc_emails: (row.poc_emails ?? []).join('; '),
+        date: new Date(row.created_at).toLocaleDateString(),
+      }
+    })
 
     const headers = Object.keys(rows[0])
-    const csv = [headers.join(','), ...rows.map((r: any) => headers.map((h) => `"${String(r[h]).replace(/"/g, '""')}"`).join(','))].join('\n')
+    const csv = [
+      headers.join(','),
+      ...rows.map((r: any) =>
+        headers.map((h) => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')
+      ),
+    ].join('\n')
 
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
